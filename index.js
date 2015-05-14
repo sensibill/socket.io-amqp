@@ -43,11 +43,6 @@ module.exports = adapter;
  *
  * @param {String} uri AMQP uri
  * @param {String} opts  Options for the connection.
- * @param {function} callback  The callback that will be called with the adapter object. Exists in the form
- *      function callback(err, adapter)
- *      {
- *
- *      }
  *
  * Following options are accepted:
  *      - prefix: A prefix for all exchanges,queues, and topics created by the module on RabbitMQ.
