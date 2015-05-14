@@ -1,6 +1,6 @@
 {
   "name": "socket.io-amqp",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A Sockets.IO Adapter for AMQP & RabbitMQ",
   "main": "lib/main.js",
   "directories": {

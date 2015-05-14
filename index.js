@@ -171,6 +171,7 @@ function adapter (uri, opts)
                                             }
                                             else
                                             {
+                                                self.amqpConsumerID = ok.consumerTag;
                                                 finish(null);
                                             }
                                         });
@@ -207,10 +208,10 @@ function adapter (uri, opts)
         var args = msgpack.decode(msg);
         var packet;
 
-        //if (uid == args.shift())
-        //{
-        //    return debug('ignore same uid');
-        //}
+        if (this.amqpConsumerID == args.shift())
+        {
+            return debug('ignore same consumer id');
+        }
 
         packet = args[0];
 
@@ -299,13 +300,13 @@ function adapter (uri, opts)
                 opts.rooms.forEach(function (room)
                 {
                     var chn = prefix + '#' + packet.nsp + '#' + room + '#';
-                    var msg = msgpack.encode([packet, opts]);
+                    var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
                     self.amqpChannel.publish(self.amqpExchangeName, chn, msg);
                 });
             }
             else
             {
-                var msg = msgpack.encode([packet, opts]);
+                var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
                 self.amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
             }
         }
