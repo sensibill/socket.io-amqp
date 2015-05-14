@@ -335,7 +335,7 @@ function adapter (uri, opts)
             delete this.rooms[room];
             var channel = prefix + '#' + this.nsp.name + '#' + room + '#';
 
-            self.amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, function (err)
+            self.amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
             {
                 if (err)
                 {
@@ -393,7 +393,7 @@ function adapter (uri, opts)
                 delete self.rooms[room];
                 var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
 
-                self.amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, function (err)
+                self.amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                 {
                     if (err)
                     {
