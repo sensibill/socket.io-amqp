@@ -1,0 +1,37 @@
+{
+  "name": "socket.io-amqp",
+  "version": "0.0.1",
+  "description": "A Sockets.IO Adapter for AMQP & RabbitMQ",
+  "main": "lib/main.js",
+  "directories": {
+    "test": "test",
+    "lib": "lib",
+    "bin": "bin"
+  },
+  "scripts": {
+    "test": "mocha test/*.js"
+  },
+  "dependencies": {
+    "socket.io-adapter": "0.3.x",
+    "amqplib": "0.3.x",
+    "debug":"2.1.x",
+    "underscore":"1.6.x",
+    "msgpack-js":"0.3.x",
+    "async":"0.9.x",
+    "uvrun":"0.1.x"
+  },
+  "repository": {
+      "type": "git",
+      "url": "https://github.com/genixpro/socket.io-amqp.git"
+  },
+  "devDependencies": {
+    "socket.io": "1.0.2",
+    "socket.io-client": "1.0.2",
+    "mocha": "1.18.0",
+    "expect.js": "0.3.1"
+  },
+  "authors": ["Bradley Arsenault", 
+              "Sensibill Inc."],
+  "license": "LGPL Version 3.0"
+}
+
