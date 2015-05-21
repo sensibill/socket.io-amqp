@@ -131,7 +131,8 @@ function adapter (uri, opts)
                     {
                         var incomingMessagesQueue = {
                             exclusive: true,
-                            durable:   false
+                            durable:   false,
+                            autoDelete: true
                         };
 
                         self.amqpChannel.assertQueue('', incomingMessagesQueue, function (err, queue)
