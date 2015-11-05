@@ -162,7 +162,7 @@ function adapter (uri, opts)
                                         self.amqpChannel.consume(self.amqpIncomingQueue, function (msg)
                                         {
                                             self.onmessage(msg.content);
-                                        }, {}, function (err, ok)
+                                        }, {noAck: true}, function (err, ok)
                                         {
                                             if (err)
                                             {
