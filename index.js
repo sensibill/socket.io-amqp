@@ -26,7 +26,7 @@
 var Adapter = require('socket.io-adapter');
 var amqplib = require('amqplib/callback_api');
 var async = require('async');
-var uvrun = require("uvrun");
+var when = require('when');
 var msgpack = require('msgpack-js');
 var debug = require('debug')('socket.io-amqp');
 var underscore = require('underscore');
@@ -43,6 +43,8 @@ module.exports = adapter;
  *
  * @param {String} uri AMQP uri
  * @param {String} opts  Options for the connection.
+ * @param {function} callback If your code needs to wait until the adapter has fully connected to the AMQP server, you can provide this callback function
+ *                            which will get called when its ready. It will also get called with any errors.
  *
  * Following options are accepted:
  *      - prefix: A prefix for all exchanges,queues, and topics created by the module on RabbitMQ.
@@ -52,7 +54,7 @@ module.exports = adapter;
  * @api public
  */
 
-function adapter (uri, opts)
+function adapter (uri, opts, callback)
 {
     opts = opts || {};
 
@@ -87,109 +89,113 @@ function adapter (uri, opts)
 
         var self = this;
 
-
-        var complete = false;
-        var error = false;
-
-        function finish (err)
+        self.connected = when.promise(function (resolve, reject)
         {
-            error = err;
-            complete = true;
-        }
-
-        // Connect to the AMQP Broker and set up our exchanges and queues
-        self.amqpConnection = amqplib.connect(uri, amqpConnectionOptions, function (err, conn)
-        {
-            if (err)
+            // Connect to the AMQP Broker and set up our exchanges and queues
+            self.amqpConnection = amqplib.connect(uri, amqpConnectionOptions, function (err, conn)
             {
-                debug('Major error while connecting to RabbitMQ: ', err.toString());
-                self.emit('error', err);
-                finish(err);
-            }
-            else
-            {
-                // create a upon which we will do our business
-                self.amqpChannel = conn.createChannel();
-
-                var amqpExchangeOptions = {
-                    durable:    true,
-                    internal:   false,
-                    autoDelete: false
-                };
-
-                self.amqpExchangeName = opts.prefix + "-socket.io";
-
-                self.amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions, function (err, exchange)
+                if (err)
                 {
-                    if (err)
-                    {
-                        debug('Major error while creating the Socket.io exchange on RabbitMQ: ', err.toString());
-                        self.emit('error', err);
-                        finish(err);
-                    }
-                    else
-                    {
-                        var incomingMessagesQueue = {
-                            exclusive: true,
-                            durable:   false,
-                            autoDelete: true
-                        };
+                    debug('Major error while connecting to RabbitMQ: ', err.toString());
+                    self.emit('error', err);
+                    reject(err);
+                }
+                else
+                {
+                    // create a upon which we will do our business
+                    var amqpChannel = conn.createChannel();
 
-                        self.amqpChannel.assertQueue('', incomingMessagesQueue, function (err, queue)
+                    var amqpExchangeOptions = {
+                        durable:    true,
+                        internal:   false,
+                        autoDelete: false
+                    };
+
+                    self.amqpExchangeName = opts.prefix + "-socket.io";
+
+                    amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions, function (err, exchange)
+                    {
+                        if (err)
                         {
-                            if (err)
-                            {
-                                debug('Major error while creating the local Socket.io queue on RabbitMQ: ', err.toString());
-                                self.emit('error', err);
-                                finish(err);
-                            }
-                            else
-                            {
-                                self.amqpIncomingQueue = queue.queue;
+                            debug('Major error while creating the Socket.io exchange on RabbitMQ: ', err.toString());
+                            self.emit('error', err);
+                            reject(err);
+                        }
+                        else
+                        {
+                            var incomingMessagesQueue = {
+                                exclusive:  true,
+                                durable:    false,
+                                autoDelete: true
+                            };
 
-                                self.globalRoomName = prefix + '#' + self.nsp.name + '#';
-                                self.amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, self.globalRoomName, {}, function (err)
+                            amqpChannel.assertQueue('', incomingMessagesQueue, function (err, queue)
+                            {
+                                if (err)
                                 {
-                                    if (err)
+                                    debug('Major error while creating the local Socket.io queue on RabbitMQ: ', err.toString());
+                                    self.emit('error', err);
+                                    reject(err);
+                                }
+                                else
+                                {
+                                    self.amqpIncomingQueue = queue.queue;
+
+                                    self.globalRoomName = prefix + '#' + self.nsp.name + '#';
+                                    amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, self.globalRoomName, {}, function (err)
                                     {
-                                        debug('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ',
-                                            err.toString());
-                                        self.emit('error', err);
-                                        finish(err);
-                                    }
-                                    else
-                                    {
-                                        self.amqpChannel.consume(self.amqpIncomingQueue, function (msg)
+                                        if (err)
                                         {
-                                            self.onmessage(msg.content);
-                                        }, {noAck: true}, function (err, ok)
+                                            debug('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ',
+                                                err.toString());
+                                            self.emit('error', err);
+                                            reject(err);
+                                        }
+                                        else
                                         {
-                                            if (err)
+                                            amqpChannel.consume(self.amqpIncomingQueue, function (msg)
                                             {
-                                                debug('Major error while setting up the consumer on local RabbitMQ connections: ', err.toString());
-                                                self.emit('error', err);
-                                                finish(err);
-                                            }
-                                            else
+                                                self.onmessage(msg.content);
+                                            }, {noAck: true}, function (err, ok)
                                             {
-                                                self.amqpConsumerID = ok.consumerTag;
-                                                finish(null);
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                    }
-                });
+                                                if (err)
+                                                {
+                                                    debug('Major error while setting up the consumer on local RabbitMQ connections: ', err.toString());
+                                                    self.emit('error', err);
+                                                    reject(err);
+                                                }
+                                                else
+                                                {
+                                                    self.amqpConsumerID = ok.consumerTag;
+                                                    resolve(amqpChannel);
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        });
+
+        self.connected.catch(function(err)
+        {
+            console.error("Error in socket.io-amqp: " + err.toString());
+            if(callback)
+            {
+                return callback(err);
             }
         });
 
-        // Special hack to turn synchronous AMQP connections and queue creations into the synchronous format that Socket.io expects
-        while (!complete)
+        self.connected.done(function()
         {
-            uvrun.runOnce();
-        }
+            if(callback)
+            {
+                return callback();
+            }
+        });
     }
 
     /**
@@ -209,7 +215,9 @@ function adapter (uri, opts)
         var args = msgpack.decode(msg);
         var packet;
 
-        if (this.amqpConsumerID == args.shift())
+        var self = this;
+
+        if (self.amqpConsumerID == args.shift())
         {
             return debug('ignore same consumer id');
         }
@@ -221,14 +229,14 @@ function adapter (uri, opts)
             packet.nsp = '/';
         }
 
-        if (!packet || packet.nsp != this.nsp.name)
+        if (!packet || packet.nsp != self.nsp.name)
         {
             return debug('ignore different namespace');
         }
 
         args.push(true);
 
-        this.broadcast.apply(this, args);
+        self.broadcast.apply(this, args);
     };
 
 
@@ -246,39 +254,42 @@ function adapter (uri, opts)
         debug('adding %s to %s ', id, room);
         var self = this;
 
-        this.sids[id] = this.sids[id] || {};
-        this.sids[id][room] = true;
-
-
-        this.rooms[room] = this.rooms[room] || {};
-        var needToSubscribe = !this.rooms.hasOwnProperty(room) || !Object.keys(this.rooms[room]).length;
-        this.rooms[room][id] = true;
-
-        var channel = prefix + '#' + this.nsp.name + '#' + room + '#';
-
-        if (needToSubscribe)
+        self.connected.done(function(amqpChannel)
         {
-            self.amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+            self.sids[id] = self.sids[id] || {};
+            self.sids[id][room] = true;
+
+
+            self.rooms[room] = self.rooms[room] || {};
+            var needToSubscribe = !self.rooms.hasOwnProperty(room) || !Object.keys(self.rooms[room]).length;
+            self.rooms[room][id] = true;
+
+            var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
+
+            if (needToSubscribe)
             {
-                if (err)
+                amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                 {
-                    self.emit('error', err);
+                    if (err)
+                    {
+                        self.emit('error', err);
+                        if (fn)
+                        {
+                            fn(err);
+                        }
+                        return;
+                    }
                     if (fn)
                     {
-                        fn(err);
+                        fn(null);
                     }
-                    return;
-                }
-                if (fn)
-                {
-                    fn(null);
-                }
-            });
-        }
-        else
-        {
-            fn(null);
-        }
+                });
+            }
+            else
+            {
+                fn(null);
+            }
+        });
     };
 
     /**
@@ -294,23 +305,27 @@ function adapter (uri, opts)
     {
         Adapter.prototype.broadcast.call(this, packet, opts);
         var self = this;
-        if (!remote)
+
+        self.connected.done(function(amqpChannel)
         {
-            if (opts.rooms)
+            if (!remote)
             {
-                opts.rooms.forEach(function (room)
+                if (opts.rooms)
                 {
-                    var chn = prefix + '#' + packet.nsp + '#' + room + '#';
+                    opts.rooms.forEach(function (room)
+                    {
+                        var chn = prefix + '#' + packet.nsp + '#' + room + '#';
+                        var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
+                        amqpChannel.publish(self.amqpExchangeName, chn, msg);
+                    });
+                }
+                else
+                {
                     var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                    self.amqpChannel.publish(self.amqpExchangeName, chn, msg);
-                });
+                    amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
+                }
             }
-            else
-            {
-                var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                self.amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
-            }
-        }
+        });
     };
 
     /**
@@ -327,40 +342,44 @@ function adapter (uri, opts)
         debug('removing %s from %s', id, room);
 
         var self = this;
-        this.sids[id] = this.sids[id] || {};
-        this.rooms[room] = this.rooms[room] || {};
-        delete this.sids[id][room];
-        delete this.rooms[room][id];
 
-        if (this.rooms.hasOwnProperty(room) && !Object.keys(this.rooms[room]).length)
+        self.connected.done(function(amqpChannel)
         {
-            delete this.rooms[room];
-            var channel = prefix + '#' + this.nsp.name + '#' + room + '#';
+            self.sids[id] = self.sids[id] || {};
+            self.rooms[room] = self.rooms[room] || {};
+            delete self.sids[id][room];
+            delete self.rooms[room][id];
 
-            self.amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+            if (self.rooms.hasOwnProperty(room) && !Object.keys(self.rooms[room]).length)
             {
-                if (err)
+                delete self.rooms[room];
+                var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
+
+                amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                 {
-                    self.emit('error', err);
+                    if (err)
+                    {
+                        self.emit('error', err);
+                        if (fn)
+                        {
+                            fn(err);
+                        }
+                        return;
+                    }
                     if (fn)
                     {
-                        fn(err);
+                        fn(null);
                     }
-                    return;
-                }
+                });
+            }
+            else
+            {
                 if (fn)
                 {
-                    fn(null);
+                    process.nextTick(fn.bind(null, null));
                 }
-            });
-        }
-        else
-        {
-            if (fn)
-            {
-                process.nextTick(fn.bind(null, null));
             }
-        }
+        });
     };
 
     /**
@@ -376,58 +395,62 @@ function adapter (uri, opts)
         debug('removing %s from all rooms', id);
 
         var self = this;
-        var rooms = this.sids[id];
 
-        if (!rooms)
+        self.connected.done(function(amqpChannel)
         {
-            return process.nextTick(fn.bind(null, null));
-        }
+            var rooms = self.sids[id];
 
-        async.each(Object.keys(rooms), function (room, next)
-        {
-            if (rooms.hasOwnProperty(room))
+            if (!rooms)
             {
-                delete self.rooms[room][id];
+                return process.nextTick(fn.bind(null, null));
             }
 
-            if (self.rooms.hasOwnProperty(room) && !Object.keys(self.rooms[room]).length)
+            async.each(Object.keys(rooms), function (room, next)
             {
-                delete self.rooms[room];
-                var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
-
-                self.amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                if (rooms.hasOwnProperty(room))
                 {
-                    if (err)
+                    delete self.rooms[room][id];
+                }
+
+                if (self.rooms.hasOwnProperty(room) && !Object.keys(self.rooms[room]).length)
+                {
+                    delete self.rooms[room];
+                    var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
+
+                    amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                     {
-                        self.emit('error', err);
-                        return next(err);
-                    }
-                    else
+                        if (err)
+                        {
+                            self.emit('error', err);
+                            return next(err);
+                        }
+                        else
+                        {
+                            next();
+                        }
+                    });
+                }
+                else
+                {
+                    process.nextTick(next);
+                }
+            }, function (err)
+            {
+                if (err)
+                {
+                    self.emit('error', err);
+                    if (fn)
                     {
-                        next();
+                        fn(err);
                     }
-                });
-            }
-            else
-            {
-                process.nextTick(next);
-            }
-        }, function (err)
-        {
-            if (err)
-            {
-                self.emit('error', err);
+                    return;
+                }
+                delete self.sids[id];
                 if (fn)
                 {
-                    fn(err);
+                    fn(null);
                 }
-                return;
-            }
-            delete self.sids[id];
-            if (fn)
-            {
-                fn(null);
-            }
+            });
         });
     };
 

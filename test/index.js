@@ -102,23 +102,25 @@ describe('socket.io-amqp', function ()
         var srv = http();
         var sio = io(srv);
 
-        sio.adapter(adapter("amqp://localhost"));
-        srv.listen(function (err)
+        sio.adapter(adapter("amqp://localhost", {}, function()
         {
-            if (err)
+            srv.listen(function (err)
             {
-                throw err;
-            } // abort tests
-            if ('function' == typeof nsp)
-            {
-                fn = nsp;
-                nsp = '';
-            }
-            nsp = nsp || '/';
-            var addr = srv.address();
-            var url = 'http://localhost:' + addr.port + nsp;
-            fn(sio.of(nsp), ioc(url));
-        });
+                if (err)
+                {
+                    throw err;
+                } // abort tests
+                if ('function' == typeof nsp)
+                {
+                    fn = nsp;
+                    nsp = '';
+                }
+                nsp = nsp || '/';
+                var addr = srv.address();
+                var url = 'http://localhost:' + addr.port + nsp;
+                fn(sio.of(nsp), ioc(url));
+            });
+        }));
     }
 
 });
