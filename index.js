@@ -43,8 +43,13 @@ module.exports = adapter;
  *
  * @param {String} uri AMQP uri
  * @param {String} opts  Options for the connection.
- * @param {function} callback If your code needs to wait until the adapter has fully connected to the AMQP server, you can provide this callback function
- *                            which will get called when its ready. It will also get called with any errors.
+ * @param {function} onNamespaceInitializedCallback This is a callback function that is called everytime sockets.io opens a
+ *                                     new namespace. Because a new namespace requires new queues and exchanges,
+ *                                     you can get a callback to indicate the success or failure here. This
+ *                                     callback should be in the form of function(err, nsp), where err is
+ *                                     the error, and nsp is the namespace. If your code needs to wait until
+ *                                     sockets.io is fully set up and ready to go, you can use this.
+
  *
  * Following options are accepted:
  *      - prefix: A prefix for all exchanges,queues, and topics created by the module on RabbitMQ.
@@ -54,7 +59,7 @@ module.exports = adapter;
  * @api public
  */
 
-function adapter (uri, opts, callback)
+function adapter (uri, opts, onNamespaceInitializedCallback)
 {
     opts = opts || {};
 
@@ -183,17 +188,17 @@ function adapter (uri, opts, callback)
         self.connected.catch(function(err)
         {
             console.error("Error in socket.io-amqp: " + err.toString());
-            if(callback)
+            if(onNamespaceInitializedCallback)
             {
-                return callback(err);
+                return onNamespaceInitializedCallback(err, nsp);
             }
         });
 
         self.connected.done(function()
         {
-            if(callback)
+            if(onNamespaceInitializedCallback)
             {
-                return callback();
+                return onNamespaceInitializedCallback(null, nsp);
             }
         });
     }
