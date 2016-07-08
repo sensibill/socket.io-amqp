@@ -259,25 +259,25 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
 
         self.connected.done(function(amqpChannel)
         {
+            var needToSubscribe = !self.rooms[room];
             Adapter.prototype.add.call(self, id, room);
             var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
 
-            amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+            if (needToSubscribe)
             {
-                if (err)
-                {
-                    self.emit('error', err);
-                    if (fn)
-                    {
-                        fn(err);
+                amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function(err) {
+                    if (err) {
+                        self.emit('error', err);
+                        if (fn) {
+                            fn(err);
+                        }
+                        return;
                     }
-                    return;
-                }
-                if (fn)
-                {
-                    fn(null);
-                }
-            });
+                    if (fn) {
+                        fn(null);
+                    }
+                });
+            }
         });
     };
 

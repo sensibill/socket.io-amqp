@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "socket.io-adapter": "0.4.x",
-    "amqplib": "0.3.x",
+    "amqplib": "0.4.x",
     "debug":"2.1.x",
     "underscore":"1.6.x",
     "msgpack-js":"0.3.x",
