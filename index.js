@@ -220,9 +220,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
         var args = msgpack.decode(msg);
         var packet;
 
-        var self = this;
-
-        if (self.amqpConsumerID == args.shift())
+        if (this.amqpConsumerID == args.shift())
         {
             return debug('ignore same consumer id');
         }
@@ -234,14 +232,14 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
             packet.nsp = '/';
         }
 
-        if (!packet || packet.nsp != self.nsp.name)
+        if (!packet || packet.nsp != this.nsp.name)
         {
             return debug('ignore different namespace');
         }
 
         args.push(true);
 
-        self.broadcast.apply(this, args);
+        Adapter.prototype.broadcast.apply(this, args);
     };
 
 
@@ -261,39 +259,25 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
 
         self.connected.done(function(amqpChannel)
         {
-            self.sids[id] = self.sids[id] || {};
-            self.sids[id][room] = true;
-
-
-            self.rooms[room] = self.rooms[room] || {};
-            var needToSubscribe = !self.rooms.hasOwnProperty(room) || !Object.keys(self.rooms[room]).length;
-            self.rooms[room][id] = true;
-
+            Adapter.prototype.add.call(self, id, room);
             var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
 
-            if (needToSubscribe)
+            amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
             {
-                amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                if (err)
                 {
-                    if (err)
-                    {
-                        self.emit('error', err);
-                        if (fn)
-                        {
-                            fn(err);
-                        }
-                        return;
-                    }
+                    self.emit('error', err);
                     if (fn)
                     {
-                        fn(null);
+                        fn(err);
                     }
-                });
-            }
-            else
-            {
-                fn(null);
-            }
+                    return;
+                }
+                if (fn)
+                {
+                    fn(null);
+                }
+            });
         });
     };
 
@@ -306,29 +290,26 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
      * @api public
      */
 
-    AMQPAdapter.prototype.broadcast = function (packet, opts, remote)
+    AMQPAdapter.prototype.broadcast = function (packet, opts)
     {
         Adapter.prototype.broadcast.call(this, packet, opts);
         var self = this;
 
         self.connected.done(function(amqpChannel)
         {
-            if (!remote)
+            if (opts.rooms)
             {
-                if (opts.rooms)
+                opts.rooms.forEach(function (room)
                 {
-                    opts.rooms.forEach(function (room)
-                    {
-                        var chn = prefix + '#' + packet.nsp + '#' + room + '#';
-                        var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                        amqpChannel.publish(self.amqpExchangeName, chn, msg);
-                    });
-                }
-                else
-                {
+                    var chn = prefix + '#' + packet.nsp + '#' + room + '#';
                     var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                    amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
-                }
+                    amqpChannel.publish(self.amqpExchangeName, chn, msg);
+                });
+            }
+            else
+            {
+                var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
+                amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
             }
         });
     };
@@ -350,14 +331,9 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
 
         self.connected.done(function(amqpChannel)
         {
-            self.sids[id] = self.sids[id] || {};
-            self.rooms[room] = self.rooms[room] || {};
-            delete self.sids[id][room];
-            delete self.rooms[room][id];
-
-            if (self.rooms.hasOwnProperty(room) && !Object.keys(self.rooms[room]).length)
+            Adapter.prototype.del.call(self, id, room);
+            if (!self.rooms[room])
             {
-                delete self.rooms[room];
                 var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
 
                 amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
@@ -405,6 +381,8 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
         {
             var rooms = self.sids[id];
 
+            Adapter.prototype.delAll.call(self, id);
+
             if (!rooms)
             {
                 return process.nextTick(fn.bind(null, null));
@@ -412,14 +390,8 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
 
             async.each(Object.keys(rooms), function (room, next)
             {
-                if (rooms.hasOwnProperty(room))
+                if (!self.rooms[room])
                 {
-                    delete self.rooms[room][id];
-                }
-
-                if (self.rooms.hasOwnProperty(room) && !Object.keys(self.rooms[room]).length)
-                {
-                    delete self.rooms[room];
                     var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
 
                     amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
