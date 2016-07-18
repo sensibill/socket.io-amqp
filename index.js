@@ -64,6 +64,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
     opts = opts || {};
 
     underscore.defaults(opts, {
+        queueName: '',
         prefix: ''
     });
 
@@ -134,7 +135,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
                                 autoDelete: true
                             };
 
-                            amqpChannel.assertQueue('', incomingMessagesQueue, function (err, queue)
+                            amqpChannel.assertQueue(opts.queueName, incomingMessagesQueue, function (err, queue)
                             {
                                 if (err)
                                 {
