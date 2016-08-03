@@ -65,6 +65,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
 
     underscore.defaults(opts, {
         queueName: '',
+        channelSeperator: '#',
         prefix: ''
     });
 
@@ -147,7 +148,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
                                 {
                                     self.amqpIncomingQueue = queue.queue;
 
-                                    self.globalRoomName = prefix + '#' + self.nsp.name + '#';
+                                    self.globalRoomName = getChannelName(prefix, self.nsp.name);
                                     amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, self.globalRoomName, {}, function (err)
                                     {
                                         if (err)
@@ -262,7 +263,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
         {
             var needToSubscribe = !self.rooms[room];
             Adapter.prototype.add.call(self, id, room);
-            var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
+            var channel = getChannelName(prefix, self.nsp.name, room);
 
             if (needToSubscribe)
             {
@@ -302,7 +303,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
             {
                 opts.rooms.forEach(function (room)
                 {
-                    var chn = prefix + '#' + packet.nsp + '#' + room + '#';
+                    var chn = getChannelName(prefix, packet.nsp, room);
                     var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
                     amqpChannel.publish(self.amqpExchangeName, chn, msg);
                 });
@@ -335,7 +336,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
             Adapter.prototype.del.call(self, id, room);
             if (!self.rooms[room])
             {
-                var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
+                var channel = getChannelName(prefix, self.nsp.name, room);
 
                 amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                 {
@@ -393,7 +394,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
             {
                 if (!self.rooms[room])
                 {
-                    var channel = prefix + '#' + self.nsp.name + '#' + room + '#';
+                    var channel = getChannelName(prefix, self.nsp.name, room);
 
                     amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                     {
@@ -431,6 +432,10 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
             });
         });
     };
+
+    function getChannelName() {
+        return Array.prototype.join.call(arguments, opts.channelSeperator) + opts.channelSeperator;
+    }
 
     return AMQPAdapter;
 
