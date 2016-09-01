@@ -69,14 +69,6 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
         prefix: ''
     });
 
-
-    // handle options only
-    //if ('object' == typeof uri)
-    //{
-    //    opts = uri;
-    //    uri = null;
-    //}
-
     var prefix = opts.prefix;
 
     /**
