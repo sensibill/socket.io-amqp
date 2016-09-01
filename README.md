@@ -2,7 +2,7 @@
 
 A Socket.IO Adapter for use with RabbitMQ and other AMQP services.
 
-[![Build Status](https://travis-ci.org/GabrielCastro/socket.io-amqp.svg)](https://travis-ci.org/genixpro/socket.io-amqp)
+[![Build Status](https://travis-ci.org/sensibill/socket.io-amqp.svg)](https://travis-ci.org/sensibill/socket.io-amqp)
 
 
 [![NPM version](https://badge.fury.io/js/socket.io-amqp.svg)](http://badge.fury.io/js/socket.io-amqp)
