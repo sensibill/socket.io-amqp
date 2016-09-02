@@ -24,12 +24,16 @@
  */
 
 const Adapter = require('socket.io-adapter'),
-    amqplib = require('amqplib/callback_api'),
-    async = require('async'),
+    amqplib = require('amqplib'),
     debug = require('debug')('socket.io-amqp'),
     msgpack = require('msgpack-js'),
     underscore = require('underscore'),
     when = require('when');
+
+const noOp = function ()
+{
+    // noOp
+};
 
 /**
  * Module exports.
@@ -37,23 +41,24 @@ const Adapter = require('socket.io-adapter'),
 
 module.exports = adapter;
 
-
 /**
  * Returns an AMQP adapter class
  *
- * @param {String} uri AMQP uri
- * @param {String} opts  Options for the connection.
+ * @param {String}  uri AMQP uri
+ * @param {Object}  opts  Options for the connection.
+ * @param {String}  [opts.queueName='']
+ * @param {String}  [opts.channelSeperator='#']
+ * @param {String}  [opts.prefix='']
+ * @param {Boolean} [opts.useInputExchange=false]
  * @param {function} onNamespaceInitializedCallback This is a callback function that is called everytime sockets.io opens a
  *                                     new namespace. Because a new namespace requires new queues and exchanges,
  *                                     you can get a callback to indicate the success or failure here. This
  *                                     callback should be in the form of function (err, nsp), where err is
  *                                     the error, and nsp is the namespace. If your code needs to wait until
  *                                     sockets.io is fully set up and ready to go, you can use this.
-
  *
  * Following options are accepted:
  *      - prefix: A prefix for all exchanges,queues, and topics created by the module on RabbitMQ.
- *
  *
  *
  * @api public
@@ -66,7 +71,8 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     underscore.defaults(opts, {
         queueName: '',
         channelSeperator: '#',
-        prefix: ''
+        prefix: '',
+        useInputExchange: false
     });
 
     const prefix = opts.prefix;
@@ -82,104 +88,104 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         Adapter.call(this, nsp);
 
-        const amqpConnectionOptions = {
-            //heartbeat: 30
+        const amqpConnectionOptions = {};
+
+        const amqpExchangeOptions = {
+            durable: true,
+            internal: false,
+            autoDelete: false
         };
 
-        const self = this;
+        this.amqpExchangeName = opts.prefix + '-socket.io';
+        this.amqpInputExchangeName = opts.prefix + '-socket.io-input';
+        this.publishExchange = opts.useInputExchange ? this.amqpInputExchangeName : this.amqpExchangeName;
 
-        self.connected = when.promise(function (resolve, reject)
+        let amqpChannel;
+        let loggedOnce = false;
+
+        function logErr(msg, err)
         {
-            // Connect to the AMQP Broker and set up our exchanges and queues
-            self.amqpConnection = amqplib.connect(uri, amqpConnectionOptions, function (err, conn)
+            if (!loggedOnce)
             {
-                if (err)
+                loggedOnce = true;
+                debug(msg, err);
+            }
+        }
+
+        this.connected = amqplib.connect(uri, amqpConnectionOptions)
+            .catch(err =>
+            {
+                logErr('Major error while connecting to RabbitMQ: ', err);
+                throw err;
+            })
+            .then(conn => conn.createChannel())
+            .then(ch =>
+            {
+                amqpChannel = ch;
+                return amqpChannel.assertExchange(this.amqpExchangeName, 'direct', amqpExchangeOptions);
+            })
+            .then(() =>
+            {
+                if (!opts.useInputExchange)
                 {
-                    debug('Major error while connecting to RabbitMQ: ', err.toString());
-                    self.emit('error', err);
-                    reject(err);
+                    return;
                 }
-                else
+                return amqpChannel.assertExchange(this.amqpInputExchangeName, 'fanout', amqpExchangeOptions);
+            })
+            .then(() =>
+            {
+                if (!opts.useInputExchange)
                 {
-                    // create a upon which we will do our business
-                    const amqpChannel = conn.createChannel();
-
-                    const amqpExchangeOptions = {
-                        durable:    true,
-                        internal:   false,
-                        autoDelete: false
-                    };
-
-                    self.amqpExchangeName = opts.prefix + '-socket.io';
-
-                    amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions, function (err, exchange)
-                    {
-                        if (err)
-                        {
-                            debug('Major error while creating the Socket.io exchange on RabbitMQ: ', err.toString());
-                            self.emit('error', err);
-                            reject(err);
-                        }
-                        else
-                        {
-                            const incomingMessagesQueue = {
-                                exclusive:  true,
-                                durable:    false,
-                                autoDelete: true
-                            };
-
-                            amqpChannel.assertQueue(opts.queueName, incomingMessagesQueue, function (err, queue)
-                            {
-                                if (err)
-                                {
-                                    debug('Major error while creating the local Socket.io queue on RabbitMQ: ', err.toString());
-                                    self.emit('error', err);
-                                    reject(err);
-                                }
-                                else
-                                {
-                                    self.amqpIncomingQueue = queue.queue;
-
-                                    self.globalRoomName = getChannelName(prefix, self.nsp.name);
-                                    amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, self.globalRoomName, {}, function (err)
-                                    {
-                                        if (err)
-                                        {
-                                            debug('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ',
-                                                err.toString());
-                                            self.emit('error', err);
-                                            reject(err);
-                                        }
-                                        else
-                                        {
-                                            amqpChannel.consume(self.amqpIncomingQueue, function (msg)
-                                            {
-                                                self.onmessage(msg.content);
-                                            }, {noAck: true}, function (err, ok)
-                                            {
-                                                if (err)
-                                                {
-                                                    debug('Major error while setting up the consumer on local RabbitMQ connections: ', err.toString());
-                                                    self.emit('error', err);
-                                                    reject(err);
-                                                }
-                                                else
-                                                {
-                                                    self.amqpConsumerID = ok.consumerTag;
-                                                    resolve(amqpChannel);
-                                                }
-                                            });
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
+                    return;
                 }
-            });
-        });
+                return amqpChannel.bindExchange(this.amqpExchangeName, this.amqpInputExchangeName);
+            })
+            .catch(err =>
+            {
+                logErr('Major error while creating the Socket.io exchange on RabbitMQ: ', err);
+                throw err;
+            })
+            .then(() =>
+            {
+                const incomingMessagesQueue = {
+                    exclusive: true,
+                    durable: false,
+                    autoDelete: true
+                };
+                return amqpChannel.assertQueue(opts.queueName, incomingMessagesQueue);
+            })
+            .then(queue =>
+            {
+                this.amqpIncomingQueue = queue.queue;
+            })
+            .catch(err =>
+            {
+                logErr('Major error while creating the local Socket.io queue on RabbitMQ: ', err);
+                throw err;
+            })
+            .then(() =>
+            {
+                this.globalRoomName = getChannelName(prefix, this.nsp.name);
+                return amqpChannel.bindQueue(this.amqpIncomingQueue, this.amqpExchangeName, this.globalRoomName);
+            })
+            .catch(err =>
+            {
+                logErr('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ', err);
+                throw err;
+            })
+            .then(() => amqpChannel.consume(this.amqpIncomingQueue, msg => this.onmessage(msg.content), { noAck: true }))
+            .then(ok =>
+            {
+                this.amqpConsumerID = ok.consumerTag;
+            })
+            .catch(err =>
+            {
+                logErr('Major error while setting up the consumer on local RabbitMQ connections: ', err);
+                throw err;
+            })
+            .then(() => amqpChannel);
 
-        self.connected.catch(function (err)
+        this.connected.catch(err =>
         {
             debug('Error in socket.io-amqp: ' + err.toString());
             if (onNamespaceInitializedCallback)
@@ -188,7 +194,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             }
         });
 
-        self.connected.done(function ()
+        this.connected.done(function ()
         {
             if (onNamespaceInitializedCallback)
             {
@@ -239,43 +245,35 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     /**
      * Subscribe client to room messages.
      *
-     * @param {String} client id
+     * @param {String} id Client ID
      * @param {String} room
-     * @param {Function} callback (optional)
+     * @param {Function} fn (optional)
      * @api public
      */
 
     AMQPAdapter.prototype.add = function (id, room, fn)
     {
         debug('adding %s to %s ', id, room);
-        const self = this;
-
-        self.connected.done(function (amqpChannel)
-        {
-            const needToSubscribe = !self.rooms[room];
-            Adapter.prototype.add.call(self, id, room);
-            const channel = getChannelName(prefix, self.nsp.name, room);
-
-            if (needToSubscribe)
+        fn = fn || noOp;
+        this.connected
+            .then(amqpChannel =>
             {
-                amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                const needToSubscribe = !this.rooms[room];
+                Adapter.prototype.add.call(this, id, room);
+                const channel = getChannelName(prefix, this.nsp.name, room);
+
+                if (!needToSubscribe)
                 {
-                    if (err)
-                    {
-                        self.emit('error', err);
-                        if (fn)
-                        {
-                            fn(err);
-                        }
-                        return;
-                    }
-                    if (fn)
-                    {
-                        fn(null);
-                    }
-                });
-            }
-        });
+                    return;
+                }
+
+                return amqpChannel.bindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel, {});
+            })
+            .done(() => fn(), err =>
+            {
+                this.emit('error', err);
+                fn(err);
+            });
     };
 
     /**
@@ -290,81 +288,63 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     AMQPAdapter.prototype.broadcast = function (packet, opts)
     {
         Adapter.prototype.broadcast.call(this, packet, opts);
-        const self = this;
-
-        self.connected.done(function (amqpChannel)
-        {
-            if (opts.rooms)
+        this.connected
+            .then(amqpChannel =>
             {
-                opts.rooms.forEach(function (room)
+                if (opts.rooms)
                 {
-                    const chn = getChannelName(prefix, packet.nsp, room);
-                    const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                    amqpChannel.publish(self.amqpExchangeName, chn, msg);
-                });
-            }
-            else
-            {
-                const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
-            }
-        });
+                    return when.map(opts.rooms, room =>
+                    {
+                        const chn = getChannelName(prefix, packet.nsp, room);
+                        const msg = msgpack.encode([this.amqpConsumerID, packet, opts]);
+                        return amqpChannel.publish(this.publishExchange, chn, msg);
+                    });
+                }
+                else
+                {
+                    const msg = msgpack.encode([this.amqpConsumerID, packet, opts]);
+                    return amqpChannel.publish(this.publishExchange, this.globalRoomName, msg);
+                }
+            })
+            .done();
     };
 
     /**
      * Unsubscribe client from room messages.
      *
-     * @param {String} session id
-     * @param {String} room id
-     * @param {Function} callback (optional)
+     * @param {String} id Session Id
+     * @param {String} room Room Id
+     * @param {Function} fn (optional) callback
      * @api public
      */
 
     AMQPAdapter.prototype.del = function (id, room, fn)
     {
         debug('removing %s from %s', id, room);
+        fn = fn || noOp;
 
-        const self = this;
-
-        self.connected.done(function (amqpChannel)
-        {
-            Adapter.prototype.del.call(self, id, room);
-            if (!self.rooms[room])
+        this.connected
+            .then(amqpChannel =>
             {
-                const channel = getChannelName(prefix, self.nsp.name, room);
-
-                amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                Adapter.prototype.del.call(this, id, room);
+                if (!this.rooms[room])
                 {
-                    if (err)
-                    {
-                        self.emit('error', err);
-                        if (fn)
-                        {
-                            fn(err);
-                        }
-                        return;
-                    }
-                    if (fn)
-                    {
-                        fn(null);
-                    }
-                });
-            }
-            else
-            {
-                if (fn)
-                {
-                    process.nextTick(fn.bind(null, null));
+                    const channel = getChannelName(prefix, this.nsp.name, room);
+                    return amqpChannel.unbindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel);
                 }
-            }
-        });
+            })
+            .done(() => fn(), err =>
+            {
+                this.emit('error', err);
+                fn(err);
+            });
     };
 
     /**
      * Unsubscribe client completely.
      *
-     * @param {String} client id
-     * @param {Function} callback (optional)
+     * @param {String} id Client ID
+     * @param {Function} fn (optional)
      * @api public
      */
 
@@ -372,60 +352,31 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         debug('removing %s from all rooms', id);
 
-        const self = this;
-
-        self.connected.done(function (amqpChannel)
-        {
-            const rooms = self.sids[id];
-
-            Adapter.prototype.delAll.call(self, id);
-
-            if (!rooms)
+        this.connected
+            .then(amqpChannel =>
             {
-                return process.nextTick(fn.bind(null, null));
-            }
+                const rooms = this.sids[id] || {};
+                Adapter.prototype.delAll.call(this, id);
 
-            async.each(Object.keys(rooms), function (room, next)
-            {
-                if (!self.rooms[room])
+                return when.map(Object.keys(rooms), roomId =>
                 {
-                    const channel = getChannelName(prefix, self.nsp.name, room);
-
-                    amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                    if (!this.rooms[roomId])
                     {
-                        if (err)
-                        {
-                            self.emit('error', err);
-                            return next(err);
-                        }
-                        else
-                        {
-                            next();
-                        }
-                    });
-                }
-                else
-                {
-                    process.nextTick(next);
-                }
-            }, function (err)
-            {
-                if (err)
-                {
-                    self.emit('error', err);
-                    if (fn)
-                    {
-                        fn(err);
+                        const channel = getChannelName(prefix, this.nsp.name, roomId);
+
+                        return amqpChannel.unbindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel);
                     }
-                    return;
-                }
-                delete self.sids[id];
-                if (fn)
-                {
-                    fn(null);
-                }
+                });
+            })
+            .then(() =>
+            {
+                delete this.sids[id];
+            })
+            .done(() => fn(), err =>
+            {
+                this.emit('error', err);
+                fn(err);
             });
-        });
     };
 
     function getChannelName()

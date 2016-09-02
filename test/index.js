@@ -25,6 +25,8 @@ const adapter = require('../index'),
     io = require('socket.io'),
     ioc = require('socket.io-client');
 
+const RABBIT_MQ_URI = process.env.RABBIT_MQ_URI || 'amqp://localhost';
+
 describe('socket.io-amqp', function ()
 {
     this.timeout(10000);
@@ -102,7 +104,7 @@ describe('socket.io-amqp', function ()
         const srv = http();
         const sio = io(srv);
 
-        sio.adapter(adapter('amqp://localhost', {}, function ()
+        sio.adapter(adapter(RABBIT_MQ_URI, {prefix: 'unit-tests', useInputExchange: true}, function ()
         {
             srv.listen(function (err)
             {
