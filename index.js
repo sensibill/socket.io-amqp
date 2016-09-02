@@ -44,22 +44,21 @@ module.exports = adapter;
 /**
  * Returns an AMQP adapter class
  *
- * @param {String} uri AMQP uri
- * @param {Object} opts  Options for the connection.
- * @param {String} [opts.queueName]
- * @param {String} [opts.channelSeperator]
- * @param {String} [opts.prefix]
+ * @param {String}  uri AMQP uri
+ * @param {Object}  opts  Options for the connection.
+ * @param {String}  [opts.queueName='']
+ * @param {String}  [opts.channelSeperator='#']
+ * @param {String}  [opts.prefix='']
+ * @param {Boolean} [opts.useInputExchange=false]
  * @param {function} onNamespaceInitializedCallback This is a callback function that is called everytime sockets.io opens a
  *                                     new namespace. Because a new namespace requires new queues and exchanges,
  *                                     you can get a callback to indicate the success or failure here. This
  *                                     callback should be in the form of function (err, nsp), where err is
  *                                     the error, and nsp is the namespace. If your code needs to wait until
  *                                     sockets.io is fully set up and ready to go, you can use this.
-
  *
  * Following options are accepted:
  *      - prefix: A prefix for all exchanges,queues, and topics created by the module on RabbitMQ.
- *
  *
  *
  * @api public
@@ -72,7 +71,8 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     underscore.defaults(opts, {
         queueName: '',
         channelSeperator: '#',
-        prefix: ''
+        prefix: '',
+        useInputExchange: false
     });
 
     const prefix = opts.prefix;
@@ -90,7 +90,15 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
         const amqpConnectionOptions = {};
 
+        const amqpExchangeOptions = {
+            durable: true,
+            internal: false,
+            autoDelete: false
+        };
+
         this.amqpExchangeName = opts.prefix + '-socket.io';
+        this.amqpInputExchangeName = opts.prefix + '-socket.io-input';
+        this.publishExchange = opts.useInputExchange ? this.amqpInputExchangeName : this.amqpExchangeName;
 
         let amqpChannel;
         let loggedOnce = false;
@@ -114,12 +122,21 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             .then(ch =>
             {
                 amqpChannel = ch;
-                const amqpExchangeOptions = {
-                    durable: true,
-                    internal: false,
-                    autoDelete: false
-                };
                 return amqpChannel.assertExchange(this.amqpExchangeName, 'direct', amqpExchangeOptions);
+            })
+            .then(() => {
+                if (!opts.useInputExchange)
+                {
+                    return;
+                }
+                return amqpChannel.assertExchange(this.amqpInputExchangeName, 'fanout', amqpExchangeOptions);
+            })
+            .then(() => {
+                if (!opts.useInputExchange)
+                {
+                    return;
+                }
+                return amqpChannel.bindExchange(this.amqpExchangeName, this.amqpInputExchangeName)
             })
             .catch(err =>
             {
@@ -278,13 +295,13 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                     {
                         const chn = getChannelName(prefix, packet.nsp, room);
                         const msg = msgpack.encode([this.amqpConsumerID, packet, opts]);
-                        return amqpChannel.publish(this.amqpExchangeName, chn, msg);
+                        return amqpChannel.publish(this.publishExchange, chn, msg);
                     });
                 }
                 else
                 {
                     const msg = msgpack.encode([this.amqpConsumerID, packet, opts]);
-                    return amqpChannel.publish(this.amqpExchangeName, this.globalRoomName, msg);
+                    return amqpChannel.publish(this.publishExchange, this.globalRoomName, msg);
                 }
             })
             .done();

@@ -104,7 +104,7 @@ describe('socket.io-amqp', function ()
         const srv = http();
         const sio = io(srv);
 
-        sio.adapter(adapter(RABBIT_MQ_URI, {prefix: 'unit-tests'}, function ()
+        sio.adapter(adapter(RABBIT_MQ_URI, {prefix: 'unit-tests', useInputExchange: true}, function ()
         {
             srv.listen(function (err)
             {
