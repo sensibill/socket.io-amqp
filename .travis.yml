@@ -1,8 +1,8 @@
 language: node_js
 
 node_js:
-  - "6"
-  - "4"
+  - '6'
+  - '4'
 
 services:
   - rabbitmq
@@ -12,3 +12,7 @@ before_script:
 
 script:
   - ./travis/test.sh
+
+notifications:
+  slack:
+    secure: tN1UQigex76MAowf1qCnRfOM0wY3ox/UGwy9S5fDJ8kMoyuFgQ56yMo+SyFPbBgQr28RzlLLxM7iKoBoEiXuTolCaDS0M/hJgxceD9bUaZXCJK7lfSYMDYdQdiykbWYlewINJJTVX+x1SumlZIpgOKUNahR6xMssIxNyM/aUSiBwB4XMntLqJEgVvIUj/1pMS2UICSTURMvvD/TcNFcM3wnYS21ERzmZQUObYnMTTw1OzMtwYB6mrUuKtcwhkTwcV69By3/h0dOIxMliBqrshPwO/P116m2bNatE+p/QoikS1Ulbd9QQo2Ei6ScHG71nj9/qB4ruqCyq9DtC/Ceb3Nb8qQWFNx4XPSjiQfifDRzRiCrEc50MkudAVJkDQUhgKw13EHd2Zj7rV+q0ngZUqRslfynnuderQ7ubHNlNJs8ki4o2m6n1WpOQUb+3vaGfIzkUzNQ0qDXuA9X8vrpLfS1aaVnldCjLnM6d2Q0qjgWXIMKMDen//g85KwCweolj8gy/1rZWowBIqGTXP6YFHzPSiCk6tDafpzFKT8btRB3tQFSXh/REwewBNlKJfyHVqJlMmnycjO4LqpQxNBYPQ8VoG6nhBYMEpTjRUFFEWpSlG9QV1EuY98UKFN70k83CyTKOh3CrMNELBjDcCjsNn7gAZXV01Wios4hDHvy5fVU=
