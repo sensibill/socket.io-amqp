@@ -1,3 +1,4 @@
+'use strict';
 /*
  This file is part of socket.io-amqp.
 
@@ -18,12 +19,11 @@
  more information on this project.
  */
 
-
-var http = require('http').Server;
-var io = require('socket.io');
-var ioc = require('socket.io-client');
-var expect = require('expect.js');
-var adapter = require('../');
+const adapter = require('../'),
+    expect = require('expect.js'),
+    http = require('http').Server,
+    io = require('socket.io'),
+    ioc = require('socket.io-client');
 
 describe('socket.io-amqp', function ()
 {
@@ -97,12 +97,12 @@ describe('socket.io-amqp', function ()
     });
 
     // create a pair of socket.io server+client
-    function create (nsp, fn)
+    function create(nsp, fn)
     {
-        var srv = http();
-        var sio = io(srv);
+        const srv = http();
+        const sio = io(srv);
 
-        sio.adapter(adapter("amqp://localhost", {}, function()
+        sio.adapter(adapter("amqp://localhost", {}, function ()
         {
             srv.listen(function (err)
             {
@@ -116,8 +116,8 @@ describe('socket.io-amqp', function ()
                     nsp = '';
                 }
                 nsp = nsp || '/';
-                var addr = srv.address();
-                var url = 'http://localhost:' + addr.port + nsp;
+                const addr = srv.address();
+                const url = 'http://localhost:' + addr.port + nsp;
                 fn(sio.of(nsp), ioc(url));
             });
         }));
