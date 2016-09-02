@@ -287,24 +287,25 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         Adapter.prototype.broadcast.call(this, packet, opts);
         const self = this;
-
-        self.connected.done(function (amqpChannel)
-        {
-            if (opts.rooms)
+        this.connected
+            .then(amqpChannel =>
             {
-                opts.rooms.forEach(function (room)
+                if (opts.rooms)
                 {
-                    const chn = getChannelName(prefix, packet.nsp, room);
+                    return when.map(opts.rooms, room =>
+                    {
+                        const chn = getChannelName(prefix, packet.nsp, room);
+                        const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
+                        return amqpChannel.publish(self.amqpExchangeName, chn, msg);
+                    });
+                }
+                else
+                {
                     const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                    amqpChannel.publish(self.amqpExchangeName, chn, msg);
-                });
-            }
-            else
-            {
-                const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
-            }
-        });
+                    return amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
+                }
+            })
+            .done();
     };
 
     /**
