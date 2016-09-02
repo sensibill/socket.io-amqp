@@ -90,7 +90,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
         const amqpConnectionOptions = {};
 
-        const self = this;
+        this.amqpExchangeName = opts.prefix + '-socket.io';
 
         let amqpChannel;
         let loggedOnce = false;
@@ -104,7 +104,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             }
         }
 
-        self.connected = amqplib.connect(uri, amqpConnectionOptions)
+        this.connected = amqplib.connect(uri, amqpConnectionOptions)
             .catch(err =>
             {
                 logErr('Major error while connecting to RabbitMQ: ', err);
@@ -119,8 +119,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                     internal: false,
                     autoDelete: false
                 };
-                self.amqpExchangeName = opts.prefix + '-socket.io';
-                return amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions);
+                return amqpChannel.assertExchange(this.amqpExchangeName, 'direct', amqpExchangeOptions);
             })
             .catch(err =>
             {
@@ -138,7 +137,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             })
             .then(queue =>
             {
-                self.amqpIncomingQueue = queue.queue;
+                this.amqpIncomingQueue = queue.queue;
             })
             .catch(err =>
             {
@@ -147,18 +146,18 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             })
             .then(() =>
             {
-                self.globalRoomName = getChannelName(prefix, self.nsp.name);
-                return amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, self.globalRoomName);
+                this.globalRoomName = getChannelName(prefix, this.nsp.name);
+                return amqpChannel.bindQueue(this.amqpIncomingQueue, this.amqpExchangeName, this.globalRoomName);
             })
             .catch(err =>
             {
                 logErr('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ', err);
                 throw err;
             })
-            .then(() => amqpChannel.consume(self.amqpIncomingQueue, msg => self.onmessage(msg.content), { noAck: true }))
+            .then(() => amqpChannel.consume(this.amqpIncomingQueue, msg => this.onmessage(msg.content), { noAck: true }))
             .then(ok =>
             {
-                self.amqpConsumerID = ok.consumerTag;
+                this.amqpConsumerID = ok.consumerTag;
             })
             .catch(err =>
             {
@@ -167,7 +166,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             })
             .then(() => amqpChannel);
 
-        self.connected.catch(err =>
+        this.connected.catch(err =>
         {
             debug('Error in socket.io-amqp: ' + err.toString());
             if (onNamespaceInitializedCallback)
@@ -176,7 +175,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             }
         });
 
-        self.connected.done(function ()
+        this.connected.done(function ()
         {
             if (onNamespaceInitializedCallback)
             {
@@ -237,25 +236,23 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         debug('adding %s to %s ', id, room);
         fn = fn || noOp;
-        const self = this;
-
         this.connected
             .then(amqpChannel =>
             {
-                const needToSubscribe = !self.rooms[room];
-                Adapter.prototype.add.call(self, id, room);
-                const channel = getChannelName(prefix, self.nsp.name, room);
+                const needToSubscribe = !this.rooms[room];
+                Adapter.prototype.add.call(this, id, room);
+                const channel = getChannelName(prefix, this.nsp.name, room);
 
                 if (!needToSubscribe)
                 {
                     return;
                 }
 
-                return amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {});
+                return amqpChannel.bindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel, {});
             })
             .done(() => fn(), err =>
             {
-                self.emit('error', err);
+                this.emit('error', err);
                 fn(err);
             });
     };
@@ -272,7 +269,6 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     AMQPAdapter.prototype.broadcast = function (packet, opts)
     {
         Adapter.prototype.broadcast.call(this, packet, opts);
-        const self = this;
         this.connected
             .then(amqpChannel =>
             {
@@ -281,14 +277,14 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                     return when.map(opts.rooms, room =>
                     {
                         const chn = getChannelName(prefix, packet.nsp, room);
-                        const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                        return amqpChannel.publish(self.amqpExchangeName, chn, msg);
+                        const msg = msgpack.encode([this.amqpConsumerID, packet, opts]);
+                        return amqpChannel.publish(this.amqpExchangeName, chn, msg);
                     });
                 }
                 else
                 {
-                    const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
-                    return amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
+                    const msg = msgpack.encode([this.amqpConsumerID, packet, opts]);
+                    return amqpChannel.publish(this.amqpExchangeName, this.globalRoomName, msg);
                 }
             })
             .done();
@@ -308,21 +304,19 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
         debug('removing %s from %s', id, room);
         fn = fn || noOp;
 
-        const self = this;
-
         this.connected
             .then(amqpChannel =>
             {
-                Adapter.prototype.del.call(self, id, room);
-                if (!self.rooms[room])
+                Adapter.prototype.del.call(this, id, room);
+                if (!this.rooms[room])
                 {
-                    const channel = getChannelName(prefix, self.nsp.name, room);
-                    return amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel);
+                    const channel = getChannelName(prefix, this.nsp.name, room);
+                    return amqpChannel.unbindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel);
                 }
             })
             .done(() => fn(), err =>
             {
-                self.emit('error', err);
+                this.emit('error', err);
                 fn(err);
             });
     };
@@ -339,31 +333,29 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         debug('removing %s from all rooms', id);
 
-        const self = this;
-
-        self.connected
+        this.connected
             .then(amqpChannel =>
             {
-                const rooms = self.sids[id] || {};
-                Adapter.prototype.delAll.call(self, id);
+                const rooms = this.sids[id] || {};
+                Adapter.prototype.delAll.call(this, id);
 
                 return when.map(Object.keys(rooms), roomId =>
                 {
                     if (!this.rooms[roomId])
                     {
-                        const channel = getChannelName(prefix, self.nsp.name, roomId);
+                        const channel = getChannelName(prefix, this.nsp.name, roomId);
 
-                        return amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel);
+                        return amqpChannel.unbindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel);
                     }
                 });
             })
             .then(() =>
             {
-                delete self.sids[id];
+                delete this.sids[id];
             })
             .done(() => fn(), err =>
             {
-                self.emit('error', err);
+                this.emit('error', err);
                 fn(err);
             });
     };
