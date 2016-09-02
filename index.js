@@ -45,10 +45,10 @@ module.exports = adapter;
  * Returns an AMQP adapter class
  *
  * @param {String} uri AMQP uri
- * @param {String} opts  Options for the connection.
- * @param {String} opts.queueName
- * @param {String} opts.channelSeperator
- * @param {String} opts.prefix
+ * @param {Object} opts  Options for the connection.
+ * @param {String} [opts.queueName]
+ * @param {String} [opts.channelSeperator]
+ * @param {String} [opts.prefix]
  * @param {function} onNamespaceInitializedCallback This is a callback function that is called everytime sockets.io opens a
  *                                     new namespace. Because a new namespace requires new queues and exchanges,
  *                                     you can get a callback to indicate the success or failure here. This
