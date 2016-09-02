@@ -24,8 +24,7 @@
  */
 
 const Adapter = require('socket.io-adapter'),
-    amqplib = require('amqplib/callback_api'),
-    amqplibP = require('amqplib'),
+    amqplib = require('amqplib'),
     debug = require('debug')('socket.io-amqp'),
     msgpack = require('msgpack-js'),
     underscore = require('underscore'),
@@ -105,16 +104,13 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
             }
         }
 
-        self.connected = amqplibP.connect(uri, amqpConnectionOptions)
+        self.connected = amqplib.connect(uri, amqpConnectionOptions)
             .catch(err =>
             {
                 logErr('Major error while connecting to RabbitMQ: ', err);
                 throw err;
             })
-            .then(conn =>
-            {
-                return conn.createChannel();
-            })
+            .then(conn => conn.createChannel())
             .then(ch =>
             {
                 amqpChannel = ch;
@@ -159,19 +155,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                 logErr('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ', err);
                 throw err;
             })
-            .then(() =>
-            {
-                return amqpChannel.consume(
-                    self.amqpIncomingQueue,
-                    function (msg)
-                    {
-                        self.onmessage(msg.content);
-                    },
-                    {
-                        noAck: true
-                    }
-                );
-            })
+            .then(() => amqpChannel.consume(self.amqpIncomingQueue, msg => self.onmessage(msg.content), { noAck: true }))
             .then(ok =>
             {
                 self.amqpConsumerID = ok.consumerTag;
