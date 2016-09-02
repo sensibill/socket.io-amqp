@@ -31,6 +31,11 @@ const Adapter = require('socket.io-adapter'),
     underscore = require('underscore'),
     when = require('when');
 
+const noOp = function ()
+{
+    // noOp
+};
+
 /**
  * Module exports.
  */
@@ -248,6 +253,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     AMQPAdapter.prototype.add = function (id, room, fn)
     {
         debug('adding %s to %s ', id, room);
+        fn = fn || noOp;
         const self = this;
 
         this.connected
@@ -264,13 +270,10 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
                 return amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {});
             })
-            .done(() => fn && fn(), err =>
+            .done(() => fn(), err =>
             {
                 self.emit('error', err);
-                if (fn)
-                {
-                    fn(err);
-                }
+                fn(err);
             });
     };
 
@@ -311,50 +314,34 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     /**
      * Unsubscribe client from room messages.
      *
-     * @param {String} session id
-     * @param {String} room id
-     * @param {Function} callback (optional)
+     * @param {String} id Session Id
+     * @param {String} room Room Id
+     * @param {Function} fn (optional) callback
      * @api public
      */
 
     AMQPAdapter.prototype.del = function (id, room, fn)
     {
         debug('removing %s from %s', id, room);
+        fn = fn || noOp;
 
         const self = this;
 
-        self.connected.done(function (amqpChannel)
-        {
-            Adapter.prototype.del.call(self, id, room);
-            if (!self.rooms[room])
+        this.connected
+            .then(amqpChannel =>
             {
-                const channel = getChannelName(prefix, self.nsp.name, room);
-
-                amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                Adapter.prototype.del.call(self, id, room);
+                if (!self.rooms[room])
                 {
-                    if (err)
-                    {
-                        self.emit('error', err);
-                        if (fn)
-                        {
-                            fn(err);
-                        }
-                        return;
-                    }
-                    if (fn)
-                    {
-                        fn(null);
-                    }
-                });
-            }
-            else
-            {
-                if (fn)
-                {
-                    process.nextTick(fn.bind(null, null));
+                    const channel = getChannelName(prefix, self.nsp.name, room);
+                    return amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel);
                 }
-            }
-        });
+            })
+            .done(() => fn(), err =>
+            {
+                self.emit('error', err);
+                fn(err);
+            });
     };
 
     /**
