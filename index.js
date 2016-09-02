@@ -25,6 +25,7 @@
 
 const Adapter = require('socket.io-adapter'),
     amqplib = require('amqplib/callback_api'),
+    amqplibP = require('amqplib'),
     debug = require('debug')('socket.io-amqp'),
     msgpack = require('msgpack-js'),
     underscore = require('underscore'),
@@ -92,98 +93,97 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
         const self = this;
 
-        self.connected = when.promise(function (resolve, reject)
+        let amqpChannel;
+        let loggedOnce = false;
+
+        function logErr(msg, err)
         {
-            // Connect to the AMQP Broker and set up our exchanges and queues
-            self.amqpConnection = amqplib.connect(uri, amqpConnectionOptions, function (err, conn)
+            if (!loggedOnce)
             {
-                if (err)
-                {
-                    debug('Major error while connecting to RabbitMQ: ', err.toString());
-                    self.emit('error', err);
-                    reject(err);
-                }
-                else
-                {
-                    // create a upon which we will do our business
-                    const amqpChannel = conn.createChannel();
+                loggedOnce = true;
+                debug(msg, err);
+            }
+        }
 
-                    const amqpExchangeOptions = {
-                        durable:    true,
-                        internal:   false,
-                        autoDelete: false
-                    };
-
-                    self.amqpExchangeName = opts.prefix + '-socket.io';
-
-                    amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions, function (err, exchange)
+        self.connected = amqplibP.connect(uri, amqpConnectionOptions)
+            .catch(err =>
+            {
+                logErr('Major error while connecting to RabbitMQ: ', err);
+                throw err;
+            })
+            .then(conn =>
+            {
+                return conn.createChannel();
+            })
+            .then(ch =>
+            {
+                amqpChannel = ch;
+                const amqpExchangeOptions = {
+                    durable: true,
+                    internal: false,
+                    autoDelete: false
+                };
+                self.amqpExchangeName = opts.prefix + '-socket.io';
+                return amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions);
+            })
+            .catch(err =>
+            {
+                logErr('Major error while creating the Socket.io exchange on RabbitMQ: ', err);
+                throw err;
+            })
+            .then(() =>
+            {
+                const incomingMessagesQueue = {
+                    exclusive: true,
+                    durable: false,
+                    autoDelete: true
+                };
+                return amqpChannel.assertQueue(opts.queueName, incomingMessagesQueue);
+            })
+            .then(queue =>
+            {
+                self.amqpIncomingQueue = queue.queue;
+            })
+            .catch(err =>
+            {
+                logErr('Major error while creating the local Socket.io queue on RabbitMQ: ', err);
+                throw err;
+            })
+            .then(() =>
+            {
+                self.globalRoomName = getChannelName(prefix, self.nsp.name);
+                return amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, self.globalRoomName);
+            })
+            .catch(err =>
+            {
+                logErr('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ', err);
+                throw err;
+            })
+            .then(() =>
+            {
+                return amqpChannel.consume(
+                    self.amqpIncomingQueue,
+                    function (msg)
                     {
-                        if (err)
-                        {
-                            debug('Major error while creating the Socket.io exchange on RabbitMQ: ', err.toString());
-                            self.emit('error', err);
-                            reject(err);
-                        }
-                        else
-                        {
-                            const incomingMessagesQueue = {
-                                exclusive:  true,
-                                durable:    false,
-                                autoDelete: true
-                            };
+                        self.onmessage(msg.content);
+                    },
+                    {
+                        noAck: true
+                    }
+                );
+            })
+            .then(ok =>
+            {
+                self.amqpConsumerID = ok.consumerTag;
+            })
+            .catch(err =>
+            {
+                logErr('Major error while setting up the consumer on local RabbitMQ connections: ', err);
+                throw err;
+            })
+            .then(() => amqpChannel);
 
-                            amqpChannel.assertQueue(opts.queueName, incomingMessagesQueue, function (err, queue)
-                            {
-                                if (err)
-                                {
-                                    debug('Major error while creating the local Socket.io queue on RabbitMQ: ', err.toString());
-                                    self.emit('error', err);
-                                    reject(err);
-                                }
-                                else
-                                {
-                                    self.amqpIncomingQueue = queue.queue;
-
-                                    self.globalRoomName = getChannelName(prefix, self.nsp.name);
-                                    amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, self.globalRoomName, {}, function (err)
-                                    {
-                                        if (err)
-                                        {
-                                            debug('Major error while binding the local Socket.io queue on to the Socket.io exchange for the global-room on RabbitMQ: ',
-                                                err.toString());
-                                            self.emit('error', err);
-                                            reject(err);
-                                        }
-                                        else
-                                        {
-                                            amqpChannel.consume(self.amqpIncomingQueue, function (msg)
-                                            {
-                                                self.onmessage(msg.content);
-                                            }, {noAck: true}, function (err, ok)
-                                            {
-                                                if (err)
-                                                {
-                                                    debug('Major error while setting up the consumer on local RabbitMQ connections: ', err.toString());
-                                                    self.emit('error', err);
-                                                    reject(err);
-                                                }
-                                                else
-                                                {
-                                                    self.amqpConsumerID = ok.consumerTag;
-                                                    resolve(amqpChannel);
-                                                }
-                                            });
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-        });
-
-        self.connected.catch(function (err)
+        self.connected.catch(err =>
         {
             debug('Error in socket.io-amqp: ' + err.toString());
             if (onNamespaceInitializedCallback)
