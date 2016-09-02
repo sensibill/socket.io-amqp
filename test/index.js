@@ -19,7 +19,7 @@
  more information on this project.
  */
 
-const adapter = require('../'),
+const adapter = require('../index'),
     expect = require('expect.js'),
     http = require('http').Server,
     io = require('socket.io'),
@@ -102,7 +102,7 @@ describe('socket.io-amqp', function ()
         const srv = http();
         const sio = io(srv);
 
-        sio.adapter(adapter("amqp://localhost", {}, function ()
+        sio.adapter(adapter('amqp://localhost', {}, function ()
         {
             srv.listen(function (err)
             {

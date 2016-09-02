@@ -110,7 +110,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                         autoDelete: false
                     };
 
-                    self.amqpExchangeName = opts.prefix + "-socket.io";
+                    self.amqpExchangeName = opts.prefix + '-socket.io';
 
                     amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions, function (err, exchange)
                     {
@@ -181,7 +181,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
         self.connected.catch(function (err)
         {
-            console.error("Error in socket.io-amqp: " + err.toString());
+            debug('Error in socket.io-amqp: ' + err.toString());
             if (onNamespaceInitializedCallback)
             {
                 return onNamespaceInitializedCallback(err, nsp);
