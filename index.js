@@ -124,19 +124,21 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                 amqpChannel = ch;
                 return amqpChannel.assertExchange(this.amqpExchangeName, 'direct', amqpExchangeOptions);
             })
-            .then(() => {
+            .then(() =>
+            {
                 if (!opts.useInputExchange)
                 {
                     return;
                 }
                 return amqpChannel.assertExchange(this.amqpInputExchangeName, 'fanout', amqpExchangeOptions);
             })
-            .then(() => {
+            .then(() =>
+            {
                 if (!opts.useInputExchange)
                 {
                     return;
                 }
-                return amqpChannel.bindExchange(this.amqpExchangeName, this.amqpInputExchangeName)
+                return amqpChannel.bindExchange(this.amqpExchangeName, this.amqpInputExchangeName);
             })
             .catch(err =>
             {
