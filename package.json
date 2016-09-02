@@ -8,30 +8,38 @@
     "lib": "lib",
     "bin": "bin"
   },
+  "engines": {
+    "node": ">=4.0"
+  },
   "scripts": {
-    "test": "mocha test/*.js"
+    "test": "mocha test/*.js && eslint ."
   },
   "dependencies": {
     "socket.io-adapter": "0.4.x",
     "amqplib": "0.4.x",
-    "debug":"2.1.x",
-    "underscore":"1.6.x",
-    "msgpack-js":"0.3.x",
-    "async":"0.9.x",
-    "when":"3.7.x"
+    "debug": "2.2.x",
+    "underscore": "1.6.x",
+    "msgpack-js": "0.3.x",
+    "async": "0.9.x",
+    "when": "3.7.x"
   },
   "repository": {
-      "type": "git",
-      "url": "https://github.com/genixpro/socket.io-amqp.git"
+    "type": "git",
+    "url": "https://github.com/genixpro/socket.io-amqp.git"
   },
   "devDependencies": {
-    "socket.io": "1.0.2",
-    "socket.io-client": "1.0.2",
+    "eslint": "^3.4.0",
+    "eslint-plugin-mocha": "^4.5.1",
+    "eslint-plugin-node": "^2.0.0",
+    "expect.js": "0.3.1",
     "mocha": "1.18.0",
-    "expect.js": "0.3.1"
+    "nsp": "^2.6.1",
+    "socket.io": "1.0.2",
+    "socket.io-client": "1.0.2"
   },
-  "authors": ["Bradley Arsenault", 
-              "Sensibill Inc."],
+  "authors": [
+    "Bradley Arsenault",
+    "Sensibill Inc."
+  ],
   "license": "LGPL Version 3.0"
 }
-

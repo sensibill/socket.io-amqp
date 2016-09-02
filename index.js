@@ -1,3 +1,4 @@
+'use strict';
 /*
  This file is part of socket.io-amqp.
 
@@ -22,14 +23,13 @@
  * Module dependencies.
  */
 
-
-var Adapter = require('socket.io-adapter');
-var amqplib = require('amqplib/callback_api');
-var async = require('async');
-var when = require('when');
-var msgpack = require('msgpack-js');
-var debug = require('debug')('socket.io-amqp');
-var underscore = require('underscore');
+const Adapter = require('socket.io-adapter'),
+    amqplib = require('amqplib/callback_api'),
+    async = require('async'),
+    debug = require('debug')('socket.io-amqp'),
+    msgpack = require('msgpack-js'),
+    underscore = require('underscore'),
+    when = require('when');
 
 /**
  * Module exports.
@@ -46,7 +46,7 @@ module.exports = adapter;
  * @param {function} onNamespaceInitializedCallback This is a callback function that is called everytime sockets.io opens a
  *                                     new namespace. Because a new namespace requires new queues and exchanges,
  *                                     you can get a callback to indicate the success or failure here. This
- *                                     callback should be in the form of function(err, nsp), where err is
+ *                                     callback should be in the form of function (err, nsp), where err is
  *                                     the error, and nsp is the namespace. If your code needs to wait until
  *                                     sockets.io is fully set up and ready to go, you can use this.
 
@@ -59,7 +59,7 @@ module.exports = adapter;
  * @api public
  */
 
-function adapter (uri, opts, onNamespaceInitializedCallback)
+function adapter(uri, opts, onNamespaceInitializedCallback)
 {
     opts = opts || {};
 
@@ -69,15 +69,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
         prefix: ''
     });
 
-
-    // handle options only
-    //if ('object' == typeof uri)
-    //{
-    //    opts = uri;
-    //    uri = null;
-    //}
-
-    var prefix = opts.prefix;
+    const prefix = opts.prefix;
 
     /**
      * Adapter constructor.
@@ -86,15 +78,15 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
      * @api public
      */
 
-    function AMQPAdapter (nsp)
+    function AMQPAdapter(nsp)
     {
         Adapter.call(this, nsp);
 
-        var amqpConnectionOptions = {
+        const amqpConnectionOptions = {
             //heartbeat: 30
         };
 
-        var self = this;
+        const self = this;
 
         self.connected = when.promise(function (resolve, reject)
         {
@@ -110,15 +102,15 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
                 else
                 {
                     // create a upon which we will do our business
-                    var amqpChannel = conn.createChannel();
+                    const amqpChannel = conn.createChannel();
 
-                    var amqpExchangeOptions = {
+                    const amqpExchangeOptions = {
                         durable:    true,
                         internal:   false,
                         autoDelete: false
                     };
 
-                    self.amqpExchangeName = opts.prefix + "-socket.io";
+                    self.amqpExchangeName = opts.prefix + '-socket.io';
 
                     amqpChannel.assertExchange(self.amqpExchangeName, 'direct', amqpExchangeOptions, function (err, exchange)
                     {
@@ -130,7 +122,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
                         }
                         else
                         {
-                            var incomingMessagesQueue = {
+                            const incomingMessagesQueue = {
                                 exclusive:  true,
                                 durable:    false,
                                 autoDelete: true
@@ -187,18 +179,18 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
             });
         });
 
-        self.connected.catch(function(err)
+        self.connected.catch(function (err)
         {
-            console.error("Error in socket.io-amqp: " + err.toString());
-            if(onNamespaceInitializedCallback)
+            debug('Error in socket.io-amqp: ' + err.toString());
+            if (onNamespaceInitializedCallback)
             {
                 return onNamespaceInitializedCallback(err, nsp);
             }
         });
 
-        self.connected.done(function()
+        self.connected.done(function ()
         {
-            if(onNamespaceInitializedCallback)
+            if (onNamespaceInitializedCallback)
             {
                 return onNamespaceInitializedCallback(null, nsp);
             }
@@ -219,15 +211,14 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
 
     AMQPAdapter.prototype.onmessage = function (msg)
     {
-        var args = msgpack.decode(msg);
-        var packet;
+        const args = msgpack.decode(msg);
 
         if (this.amqpConsumerID == args.shift())
         {
             return debug('ignore same consumer id');
         }
 
-        packet = args[0];
+        const packet = args[0];
 
         if (packet && packet.nsp === undefined)
         {
@@ -257,25 +248,29 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
     AMQPAdapter.prototype.add = function (id, room, fn)
     {
         debug('adding %s to %s ', id, room);
-        var self = this;
+        const self = this;
 
-        self.connected.done(function(amqpChannel)
+        self.connected.done(function (amqpChannel)
         {
-            var needToSubscribe = !self.rooms[room];
+            const needToSubscribe = !self.rooms[room];
             Adapter.prototype.add.call(self, id, room);
-            var channel = getChannelName(prefix, self.nsp.name, room);
+            const channel = getChannelName(prefix, self.nsp.name, room);
 
             if (needToSubscribe)
             {
-                amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function(err) {
-                    if (err) {
+                amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                {
+                    if (err)
+                    {
                         self.emit('error', err);
-                        if (fn) {
+                        if (fn)
+                        {
                             fn(err);
                         }
                         return;
                     }
-                    if (fn) {
+                    if (fn)
+                    {
                         fn(null);
                     }
                 });
@@ -295,22 +290,22 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
     AMQPAdapter.prototype.broadcast = function (packet, opts)
     {
         Adapter.prototype.broadcast.call(this, packet, opts);
-        var self = this;
+        const self = this;
 
-        self.connected.done(function(amqpChannel)
+        self.connected.done(function (amqpChannel)
         {
             if (opts.rooms)
             {
                 opts.rooms.forEach(function (room)
                 {
-                    var chn = getChannelName(prefix, packet.nsp, room);
-                    var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
+                    const chn = getChannelName(prefix, packet.nsp, room);
+                    const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
                     amqpChannel.publish(self.amqpExchangeName, chn, msg);
                 });
             }
             else
             {
-                var msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
+                const msg = msgpack.encode([self.amqpConsumerID, packet, opts]);
                 amqpChannel.publish(self.amqpExchangeName, self.globalRoomName, msg);
             }
         });
@@ -329,14 +324,14 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
     {
         debug('removing %s from %s', id, room);
 
-        var self = this;
+        const self = this;
 
-        self.connected.done(function(amqpChannel)
+        self.connected.done(function (amqpChannel)
         {
             Adapter.prototype.del.call(self, id, room);
             if (!self.rooms[room])
             {
-                var channel = getChannelName(prefix, self.nsp.name, room);
+                const channel = getChannelName(prefix, self.nsp.name, room);
 
                 amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                 {
@@ -377,11 +372,11 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
     {
         debug('removing %s from all rooms', id);
 
-        var self = this;
+        const self = this;
 
-        self.connected.done(function(amqpChannel)
+        self.connected.done(function (amqpChannel)
         {
-            var rooms = self.sids[id];
+            const rooms = self.sids[id];
 
             Adapter.prototype.delAll.call(self, id);
 
@@ -394,7 +389,7 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
             {
                 if (!self.rooms[room])
                 {
-                    var channel = getChannelName(prefix, self.nsp.name, room);
+                    const channel = getChannelName(prefix, self.nsp.name, room);
 
                     amqpChannel.unbindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
                     {
@@ -433,7 +428,8 @@ function adapter (uri, opts, onNamespaceInitializedCallback)
         });
     };
 
-    function getChannelName() {
+    function getChannelName()
+    {
         return Array.prototype.join.call(arguments, opts.channelSeperator) + opts.channelSeperator;
     }
 

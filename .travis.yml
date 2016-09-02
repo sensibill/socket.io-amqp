@@ -8,7 +8,7 @@ services:
   - rabbitmq
 
 before_script:
-  - npm install
+  - ./travis/setup.sh
 
 script:
-  - npm test
+  - ./travis/test.sh

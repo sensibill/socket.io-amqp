@@ -1,0 +1,48 @@
+{
+    "plugins": [
+        "mocha",
+        "node"
+    ],
+    "extends": [
+        "eslint:recommended",
+        "plugin:node/recommended"
+    ],
+    "rules": {
+        "arrow-body-style": [1, "as-needed"],
+        "brace-style": [2, "allman"],
+        "comma-style": [2, "last"],
+        "curly": [2, "all"],
+        "eol-last": 2,
+        "indent": [2, 4, {"SwitchCase": 1}],
+        "keyword-spacing": 2,
+        "linebreak-style": [2, "unix"],
+        "no-extra-semi": 2,
+        "no-mixed-spaces-and-tabs": 2,
+        "no-multi-spaces": 2,
+        "no-trailing-spaces": 2,
+        "no-undef": 2,
+        "no-unused-vars": [2, {"args": "none"}],
+        "no-var": 1,
+        "prefer-const": 2,
+        "quotes": [1, "single", {"avoidEscape": true}],
+        "semi": [2, "always"],
+        "strict": [2, "global"],
+        "space-before-function-paren": [2, {"anonymous": "always", "named": "never"}],
+        "space-unary-ops": 2,
+
+        "mocha/no-exclusive-tests": 2,
+        "mocha/no-skipped-tests": 2,
+        "mocha/no-identical-title": 2,
+        "mocha/no-pending-tests": 2,
+        "mocha/no-global-tests": 2
+    },
+    "env": {
+        "node": true,
+        "es6": true
+    },
+    "ecmaFeatures": {
+        "blockBindings": true,
+        "forOf": true,
+        "templateStrings": true
+    }
+}
