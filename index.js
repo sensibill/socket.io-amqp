@@ -37,12 +37,14 @@ const Adapter = require('socket.io-adapter'),
 
 module.exports = adapter;
 
-
 /**
  * Returns an AMQP adapter class
  *
  * @param {String} uri AMQP uri
  * @param {String} opts  Options for the connection.
+ * @param {String} opts.queueName
+ * @param {String} opts.channelSeperator
+ * @param {String} opts.prefix
  * @param {function} onNamespaceInitializedCallback This is a callback function that is called everytime sockets.io opens a
  *                                     new namespace. Because a new namespace requires new queues and exchanges,
  *                                     you can get a callback to indicate the success or failure here. This
@@ -82,9 +84,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         Adapter.call(this, nsp);
 
-        const amqpConnectionOptions = {
-            //heartbeat: 30
-        };
+        const amqpConnectionOptions = {};
 
         const self = this;
 
@@ -239,9 +239,9 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     /**
      * Subscribe client to room messages.
      *
-     * @param {String} client id
+     * @param {String} id Client ID
      * @param {String} room
-     * @param {Function} callback (optional)
+     * @param {Function} fn (optional)
      * @api public
      */
 
@@ -250,32 +250,28 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
         debug('adding %s to %s ', id, room);
         const self = this;
 
-        self.connected.done(function (amqpChannel)
-        {
-            const needToSubscribe = !self.rooms[room];
-            Adapter.prototype.add.call(self, id, room);
-            const channel = getChannelName(prefix, self.nsp.name, room);
-
-            if (needToSubscribe)
+        this.connected
+            .then(amqpChannel =>
             {
-                amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {}, function (err)
+                const needToSubscribe = !self.rooms[room];
+                Adapter.prototype.add.call(self, id, room);
+                const channel = getChannelName(prefix, self.nsp.name, room);
+
+                if (!needToSubscribe)
                 {
-                    if (err)
-                    {
-                        self.emit('error', err);
-                        if (fn)
-                        {
-                            fn(err);
-                        }
-                        return;
-                    }
-                    if (fn)
-                    {
-                        fn(null);
-                    }
-                });
-            }
-        });
+                    return;
+                }
+
+                return amqpChannel.bindQueue(self.amqpIncomingQueue, self.amqpExchangeName, channel, {});
+            })
+            .done(() => fn && fn(), err =>
+            {
+                self.emit('error', err);
+                if (fn)
+                {
+                    fn(err);
+                }
+            });
     };
 
     /**
