@@ -351,6 +351,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     AMQPAdapter.prototype.delAll = function (id, fn)
     {
         debug('removing %s from all rooms', id);
+        fn = fn || noOp;
 
         this.connected
             .then(amqpChannel =>
