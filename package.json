@@ -1,12 +1,11 @@
 {
   "name": "socket.io-amqp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A Sockets.IO Adapter for AMQP & RabbitMQ",
   "main": "lib/main.js",
   "directories": {
     "test": "test",
-    "lib": "lib",
-    "bin": "bin"
+    "lib": "lib"
   },
   "engines": {
     "node": ">=4.0"
@@ -41,5 +40,5 @@
     "Bradley Arsenault",
     "Sensibill Inc."
   ],
-  "license": "LGPL Version 3.0"
+  "license": "LGPL-3.0"
 }
