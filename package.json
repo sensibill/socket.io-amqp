@@ -1,6 +1,6 @@
 {
   "name": "socket.io-amqp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A Sockets.IO Adapter for AMQP & RabbitMQ",
   "main": "lib/main.js",
   "directories": {
@@ -14,12 +14,12 @@
     "test": "mocha test/*.js && eslint ."
   },
   "dependencies": {
-    "socket.io-adapter": "0.4.x",
-    "amqplib": "0.4.x",
+    "socket.io-adapter": "1.1.x",
+    "amqplib": "0.5.x",
     "debug": "2.2.x",
-    "underscore": "1.6.x",
+    "underscore": "1.8.x",
     "msgpack-js": "0.3.x",
-    "async": "0.9.x",
+    "async": "2.5.x",
     "when": "3.7.x"
   },
   "repository": {
@@ -33,8 +33,8 @@
     "expect.js": "0.3.1",
     "mocha": "1.18.0",
     "nsp": "^2.6.1",
-    "socket.io": "1.0.2",
-    "socket.io-client": "1.0.2"
+    "socket.io": "2.0.x",
+    "socket.io-client": "2.0.x"
   },
   "authors": [
     "Bradley Arsenault",
