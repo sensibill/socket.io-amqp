@@ -291,7 +291,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
         this.connected
             .then(amqpChannel =>
             {
-                if (opts.rooms)
+                if (opts.rooms && opts.rooms.length !== 0)
                 {
                     return when.map(opts.rooms, room =>
                     {
