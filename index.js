@@ -241,33 +241,35 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
         Adapter.prototype.broadcast.apply(this, args);
     };
 
-
     /**
-     * Subscribe client to room messages.
+     * Adds a socket to a list of room.
      *
-     * @param {String} id Client ID
-     * @param {String} room
-     * @param {Function} fn (optional)
+     * @param {String} socket id
+     * @param {String} rooms
+     * @param {Function} callback
      * @api public
      */
 
-    AMQPAdapter.prototype.add = function (id, room, fn)
+    AMQPAdapter.prototype.addAll = function (id, rooms, fn)
     {
-        debug('adding %s to %s ', id, room);
+        debug('adding %s to %s ', id, rooms);
         fn = fn || noOp;
         this.connected
             .then(amqpChannel =>
             {
-                const needToSubscribe = !this.rooms[room];
-                Adapter.prototype.add.call(this, id, room);
-                const channel = getChannelName(prefix, this.nsp.name, room);
-
-                if (!needToSubscribe)
+                return when.map(rooms, room =>
                 {
-                    return;
-                }
+                    const needToSubscribe = !this.rooms[room];
+                    Adapter.prototype.addAll.call(this, id, [room]);
+                    const channel = getChannelName(prefix, this.nsp.name, room);
 
-                return amqpChannel.bindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel, {});
+                    if (!needToSubscribe)
+                    {
+                        return;
+                    }
+
+                    return amqpChannel.bindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel, {});
+                });
             })
             .done(() => fn(), err =>
             {
