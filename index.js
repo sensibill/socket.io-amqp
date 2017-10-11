@@ -118,7 +118,11 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                 logErr('Major error while connecting to RabbitMQ: ', err);
                 throw err;
             })
-            .then(conn => conn.createChannel())
+            .then(conn =>
+            {
+                this.connection = conn;
+                return conn.createChannel();
+            })
             .then(ch =>
             {
                 amqpChannel = ch;
@@ -209,6 +213,11 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
     AMQPAdapter.prototype.__proto__ = Adapter.prototype;
 
+    AMQPAdapter.prototype.closeConnection = function ()
+    {
+        this.connection.close();
+    };
+
     /**
      * Called with a subscription message
      *
@@ -256,8 +265,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
         fn = fn || noOp;
         this.connected
             .then(amqpChannel =>
-            {
-                return when.map(rooms, room =>
+                when.map(rooms, room =>
                 {
                     const needToSubscribe = !this.rooms[room];
                     Adapter.prototype.addAll.call(this, id, [room]);
@@ -269,8 +277,8 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
                     }
 
                     return amqpChannel.bindQueue(this.amqpIncomingQueue, this.amqpExchangeName, channel, {});
-                });
-            })
+                })
+            )
             .done(() => fn(), err =>
             {
                 this.emit('error', err);
