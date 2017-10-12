@@ -215,7 +215,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
     AMQPAdapter.prototype.closeConnection = function ()
     {
-        this.connection.close();
+        return this.connection.close();
     };
 
     /**
