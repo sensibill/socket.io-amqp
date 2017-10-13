@@ -1,6 +1,6 @@
 {
   "name": "socket.io-amqp",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "A Sockets.IO Adapter for AMQP & RabbitMQ",
   "main": "lib/main.js",
   "directories": {
@@ -24,7 +24,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/genixpro/socket.io-amqp.git"
+    "url": "https://github.com/sensibill/socket.io-amqp"
   },
   "devDependencies": {
     "eslint": "4.x",
