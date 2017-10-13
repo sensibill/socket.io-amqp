@@ -29,7 +29,23 @@ const RABBIT_MQ_URI = process.env.RABBIT_MQ_URI || 'amqp://localhost';
 
 describe('socket.io-amqp', function ()
 {
-    this.timeout(10000);
+    this.timeout(1000);
+
+    const sios = [];
+
+    afterEach(function ()
+    {
+        sios.forEach((sio) =>
+        {
+            sio.close(() =>
+            {
+                for (const key in sio.nsps)
+                {
+                    setTimeout(sio.nsps[key].adapter.closeConnection, 1000);
+                }
+            });
+        });
+    });
 
     it('broadcasts', function (done)
     {
@@ -103,6 +119,7 @@ describe('socket.io-amqp', function ()
     {
         const srv = http();
         const sio = io(srv);
+        sios.push(sio);
 
         sio.adapter(adapter(RABBIT_MQ_URI, {prefix: 'unit-tests', useInputExchange: true}, function ()
         {
