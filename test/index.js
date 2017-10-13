@@ -37,11 +37,13 @@ describe('socket.io-amqp', function ()
     {
         sios.forEach((sio) =>
         {
-            sio.close();
-            for (const key in sio.nsps)
+            sio.close(() =>
             {
-                sio.nsps[key].adapter.closeConnection();
-            }
+                for (const key in sio.nsps)
+                {
+                    sio.nsps[key].adapter.closeConnection();
+                }
+            });
         });
     });
 
