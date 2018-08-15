@@ -89,7 +89,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         Adapter.call(this, nsp);
 
-        const { amqpConnectionOptions } = opts;
+        const amqpConnectionOptions = opts.amqpConnectionOptions || {};
 
         const amqpExchangeOptions = {
             durable: true,
