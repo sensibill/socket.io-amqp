@@ -50,6 +50,7 @@ module.exports = adapter;
  * @param {String}  [opts.channelSeperator='#']
  * @param {String}  [opts.prefix='']
  * @param {Boolean} [opts.useInputExchange=false]
+ * @param {Object}  [opts.amqpConnectionOptions={}]
  * @param {function} onNamespaceInitializedCallback This is a callback function that is called everytime sockets.io opens a
  *                                     new namespace. Because a new namespace requires new queues and exchanges,
  *                                     you can get a callback to indicate the success or failure here. This
@@ -72,7 +73,8 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
         queueName: '',
         channelSeperator: '#',
         prefix: '',
-        useInputExchange: false
+        useInputExchange: false,
+        amqpConnectionOptions: {},
     });
 
     const prefix = opts.prefix;
@@ -88,7 +90,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         Adapter.call(this, nsp);
 
-        const amqpConnectionOptions = {};
+        const amqpConnectionOptions = opts.amqpConnectionOptions;
 
         const amqpExchangeOptions = {
             durable: true,
