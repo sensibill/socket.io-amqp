@@ -47,7 +47,7 @@ module.exports = adapter;
  * @param {String}  uri AMQP uri
  * @param {Object}  opts  Options for the connection.
  * @param {String}  [opts.queueName='']
- * @param {String}  [opts.channelSeperator='#']
+ * @param {String}  [opts.channelSeparator='#']
  * @param {String}  [opts.prefix='']
  * @param {Boolean} [opts.useInputExchange=false]
  * @param {Object}  [opts.amqpConnectionOptions={}]
@@ -71,7 +71,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
     underscore.defaults(opts, {
         queueName: '',
-        channelSeperator: '#',
+        channelSeparator: '#',
         prefix: '',
         useInputExchange: false,
         amqpConnectionOptions: {},
@@ -394,7 +394,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
 
     function getChannelName()
     {
-        return Array.prototype.join.call(arguments, opts.channelSeperator) + opts.channelSeperator;
+        return Array.prototype.join.call(arguments, opts.channelSeparator) + opts.channelSeparator;
     }
 
     return AMQPAdapter;
