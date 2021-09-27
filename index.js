@@ -72,7 +72,8 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
         queueName: '',
         channelSeperator: '#',
         prefix: '',
-        useInputExchange: false
+        useInputExchange: false,
+        amqpConnectionOptions: {}
     });
 
     const prefix = opts.prefix;
@@ -88,7 +89,7 @@ function adapter(uri, opts, onNamespaceInitializedCallback)
     {
         Adapter.call(this, nsp);
 
-        const amqpConnectionOptions = {};
+        const amqpConnectionOptions = opts.amqpConnectionOptions || {};
 
         const amqpExchangeOptions = {
             durable: true,
