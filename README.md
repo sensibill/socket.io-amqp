@@ -35,3 +35,5 @@ The following options are allowed:
 - `useInputExchange` option: This configures the use of 2 exchanges 
     `socket.io` and `socket.io-input` where `socket.io-input` is a fanout exchange
     and `socket.io` is bound to it.
+    
+- `amqpConnectionOptions`
